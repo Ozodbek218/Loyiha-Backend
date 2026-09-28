@@ -1,6 +1,6 @@
 const express = require('express');
 const swaggerUi = require('swagger-ui-express');
-const swaggerSpec = require('../config/swagger');
+const swaggerSpec = require('../docs/swaggerSpec');
 
 const router = express.Router();
 
@@ -29,7 +29,7 @@ const swaggerUiOptions = {
   }
 };
 
-// Mount Swagger UI
+// Mount Swagger UI using standalone spec without touching route files
 router.use('/', swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerUiOptions));
 
 module.exports = router;

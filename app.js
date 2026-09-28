@@ -29,39 +29,59 @@ const swaggerRoutes = require('./routes/swaggerRoutes');
 const app = express();
 
 // Database Connection & Synchronization
+let isDbConnected = false;
+
 sequelize.authenticate()
   .then(() => {
+    isDbConnected = true;
     console.log('[PostgreSQL] Connected successfully to database');
-    return sequelize.sync();
+    if (!process.env.VERCEL) {
+      return sequelize.sync();
+    }
   })
   .then(() => {
-    console.log('[PostgreSQL] Database models synchronized successfully');
+    if (!process.env.VERCEL && isDbConnected) {
+      console.log('[PostgreSQL] Database models synchronized successfully');
+    }
   })
   .catch((error) => {
-    console.error('[PostgreSQL] Database connection error:', error.message);
+    isDbConnected = false;
+    console.error('[PostgreSQL] Database connection notice:', error.message);
   });
 
 // Core Middleware
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: true,
   credentials: true
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
   app.use(morgan('dev'));
 }
 
 // Serve uploaded images statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Health check endpoint
+// Root & Health check endpoints
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    platform: 'CORELY Marketplace API (Loyiha-Backend)',
+    version: '1.0.0',
+    database: isDbConnected ? 'connected' : 'disconnected (configure DATABASE_URL in Vercel Environment Variables)',
+    docs: '/api-docs',
+    timestamp: new Date()
+  });
+});
+
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
-    platform: 'CORELY - Technology that fits your world (PostgreSQL + Sequelize)',
+    platform: 'CORELY Marketplace API (PostgreSQL + Sequelize)',
     version: '1.0.0',
+    database: isDbConnected ? 'connected' : 'disconnected',
     timestamp: new Date()
   });
 });
@@ -96,10 +116,13 @@ app.use((req, res, next) => {
 // Centralized error handler
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`[CORELY Server] Running in ${process.env.NODE_ENV || 'development'} mode on http://localhost:${PORT}`);
-  console.log(`[Swagger UI] Interactive API Docs available at http://localhost:${PORT}/api-docs`);
-});
+// Only listen when run directly (not when imported by Vercel serverless)
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`[CORELY Server] Running in ${process.env.NODE_ENV || 'development'} mode on http://localhost:${PORT}`);
+    console.log(`[Swagger UI] Interactive API Docs available at http://localhost:${PORT}/api-docs`);
+  });
+}
 
 module.exports = app;
